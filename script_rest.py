@@ -1,114 +1,3 @@
-# import requests as req
-# import pandas as pd
-# import time
-# import os
-
-# tokens = ['TOKEN01', 'TOKEN02']
-# current_token_index = 0
-
-# def get_current_token():
-#     global current_token_index
-#     return tokens[current_token_index]
-
-# def switch_token():
-#     global current_token_index
-#     current_token_index = (current_token_index + 1) % len(tokens)
-
-# def get(url):
-#     token = get_current_token()
-#     start_time = time.time()
-#     response = req.get(url, headers={'Authorization': f'token {token}'})
-#     end_time = time.time()
-#     response_time = end_time - start_time
-#     response_size = len(response.content)
-
-#     if response.status_code == 200:
-#         return response.json(), response_time, response_size
-#     else:
-#         raise Exception(f'Request error: {response.status_code} \n {response.text}')
-
-# def fetch_repositories():
-#     repositories = []
-#     per_page = 1
-#     page = 1
-#     query_string = "stars:>0"
-    
-#     total_time = 0
-#     total_size = 0
-#     response_times = []
-#     response_sizes = []
-    
-#     while len(repositories) < 1000:
-#         url = f'https://api.github.com/search/repositories?q={query_string}&sort=stars&order=desc&per_page={per_page}&page={page}'
-        
-#         data, response_time, response_size = get(url)
-        
-#         switch_token()
-        
-#         total_time += response_time
-#         total_size += response_size
-#         response_times.append(response_time)
-#         response_sizes.append(response_size)
-        
-#         if 'errors' in data:
-#             print("API request failed:", data['errors'])
-#             print("Waiting for 60 seconds before retrying...")
-#             time.sleep(60)
-#             continue
-
-#         print(f"Received {len(data['items'])} repositories in this batch.")
-
-#         repositories.extend(data['items'])
-        
-#         if len(data['items']) < per_page:
-#             break
-        
-#         page += 1
-#         time.sleep(0.2)
-
-#     print(f"Total response time: {total_time} seconds")
-#     print(f"Total response size: {total_size} bytes")
-
-#     return repositories, response_times, response_sizes
-
-# def save_csv(data, response_times, response_sizes, filename):
-#     directory = '../ti06-pesquisa-es-docker/dataset'
-
-#     if not os.path.exists(directory):
-#         os.makedirs(directory)
-
-#     filepath = os.path.join(directory, filename)
-
-#     if os.path.exists(filepath):
-#         existing_data = pd.read_csv(filepath, sep=';')
-#         updated_data = pd.concat([existing_data, data], ignore_index=True)
-#         updated_data['Response Time'] = response_times
-#         updated_data['Response Size'] = response_sizes
-#         updated_data.to_csv(filepath, index=False, sep=';')
-#     else:
-#         data['Response Time'] = response_times
-#         data['Response Size'] = response_sizes
-#         data.to_csv(filepath, index=False, sep=';')
-
-# def process_repositories(repositories, response_times, response_sizes):
-#     processed_data = pd.DataFrame()
-#     processed_data['Repository URL'] = [repo['html_url'] for repo in repositories]
-#     processed_data['Repository name'] = [repo.get('name') for repo in repositories]
-#     processed_data['Repository owner'] = [repo.get('owner', {}).get('login') for repo in repositories]
-#     processed_data['Stars'] = [repo.get('stargazers_count', 0) if isinstance(repo, dict) else 0 for repo in repositories]
-#     processed_data['Created At'] = [repo.get('created_at') for repo in repositories]
-#     processed_data['Updated At'] = [repo.get('updated_at') for repo in repositories]
-#     processed_data['Total Pull Requests'] = [get(repo['pulls_url'].split("{")[0] + "?state=all")[0].get('total_count', 0) for repo in repositories]
-    
-#     save_csv(processed_data, response_times, response_sizes, 'most_popular_repositories_data.csv')
-#     print('The repository list has been created')
-
-#     return processed_data
-
-# repositories, response_times, response_sizes = fetch_repositories()
-# process_repositories(repositories, response_times, response_sizes)
-
-
 import requests as req
 import pandas as pd
 import time
@@ -116,6 +5,8 @@ import os
 
 tokens = ['TOKEN01', 'TOKEN02']
 current_token_index = 0
+MIN_SLEEP = 60
+MS_SLEEP = 0.1
 
 def get_current_token():
     global current_token_index
@@ -157,19 +48,17 @@ def fetch_repositories():
         except Exception as e:
             print(e)
             print("Waiting for 60 seconds before retrying...")
-            sleep_start_time = time.time()
-            time.sleep(60)
-            sleep_end_time = time.time()
-            total_time -= (sleep_end_time - sleep_start_time)
-            response_times.append(response_time - (sleep_end_time - sleep_start_time))
+            time.sleep(MIN_SLEEP)
+            total_time -= MIN_SLEEP
+            response_times.append(response_time - MIN_SLEEP)
             response_sizes.append(response_size)
             continue
         
         switch_token()
         
-        total_time += response_time - 0.2
+        total_time += response_time - MS_SLEEP
         total_size += response_size
-        response_times.append(response_time - 0.2)
+        response_times.append(response_time - MS_SLEEP)
         response_sizes.append(response_size)
         
         if 'errors' in data:
@@ -184,8 +73,9 @@ def fetch_repositories():
             break
         
         page += 1
-        time.sleep(0.2)
+        time.sleep(MS_SLEEP)
 
+    print()
     print(f"Total response time: {total_time:.3f} seconds")
     print(f"Total response size: {total_size} bytes")
 
@@ -218,9 +108,8 @@ def process_repositories(repositories, response_times, response_sizes):
     processed_data['Stars'] = [repo.get('stargazers_count', 0) if isinstance(repo, dict) else 0 for repo in repositories]
     processed_data['Created At'] = [repo.get('created_at') for repo in repositories]
     processed_data['Updated At'] = [repo.get('updated_at') for repo in repositories]
-    processed_data['Total Pull Requests'] = [get(repo['pulls_url'].split("{")[0] + "?state=all")[0].get('total_count', 0) for repo in repositories]
     
-    save_csv(processed_data, response_times, response_sizes, 'most_popular_repositories_data.csv')
+    save_csv(processed_data, response_times, response_sizes, 'most_popular_repos_rest.csv')
     print('The repository list has been created')
 
     return processed_data
