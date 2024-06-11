@@ -50,8 +50,6 @@ def fetch_repositories():
             print("Waiting for 60 seconds before retrying...")
             time.sleep(MIN_SLEEP)
             total_time -= MIN_SLEEP
-            response_times.append(response_time - MIN_SLEEP)
-            response_sizes.append(response_size)
             continue
         
         switch_token()
